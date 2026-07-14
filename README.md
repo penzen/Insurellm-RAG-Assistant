@@ -4,7 +4,7 @@ An advanced Retrieval-Augmented Generation (RAG) assistant for a fictional insur
 
 The application lets users ask natural-language questions about company documents, products, employees, contracts, careers, and company culture. It retrieves relevant information from a local knowledge base, improves retrieval with query rewriting and reranking, and generates grounded answers using an LLM.
 
-This project was built as part of **Week 5: RAG, Vector Embeddings, Retrieval Evaluation, and Advanced RAG Techniques**.
+
 
 ---
 
