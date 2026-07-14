@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+vector_db/
+preprocessed_db/
+
+notebook/
+
+.DS_Store
