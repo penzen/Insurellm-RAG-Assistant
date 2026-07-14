@@ -1,78 +1,43 @@
 # Insurellm RAG Assistant
 
-A Retrieval-Augmented Generation application that allows users to ask questions about a fictional company called **Insurellm**.
-The assistant retrieves relevant information from a local company knowledge base and uses an LLM to generate answers grounded in the provided context.
+An advanced Retrieval-Augmented Generation (RAG) assistant for a fictional insurance technology company called **Insurellm**.
 
+The application lets users ask natural-language questions about company documents, products, employees, contracts, careers, and company culture. It retrieves relevant information from a local knowledge base, improves retrieval with query rewriting and reranking, and generates grounded answers using an LLM.
 
+This project was built as part of **Week 5: RAG, Vector Embeddings, Retrieval Evaluation, and Advanced RAG Techniques**.
 
 ---
 
 ## Project Overview
 
-This project demonstrates how to build a basic RAG system using:
+The goal of this project is to move beyond a basic chatbot and build a more realistic RAG system.
 
-* Markdown documents as a knowledge base
-* Document loading and text chunking
-* Vector embeddings
-* Chroma vector database
-* Semantic retrieval
-* LLM-based answer generation
-* Gradio chat interface
+Instead of asking the LLM to answer from its own training data, the app first searches a company knowledge base, retrieves relevant document chunks, and gives those chunks to the LLM as context.
 
-The knowledge base contains information about the company, employees, contracts, products, careers, culture, and general company details.
+The project includes two RAG implementations:
 
-Instead of relying only on the LLM's internal knowledge, the app retrieves relevant document chunks from the vector database and provides them to the LLM as context before generating an answer.
+1. **Basic RAG implementation** using LangChain, Hugging Face embeddings, Chroma, and recursive text splitting.
+2. **Advanced RAG implementation** using LLM-assisted preprocessing, OpenAI embeddings, query rewriting, query expansion, reranking, and an evaluation dashboard.
+
+The current Gradio app uses the **advanced implementation**.
 
 ---
 
-## What This Project Does
+## Knowledge Base
 
-The assistant can answer questions such as:
+The knowledge base is stored as Markdown files under `knowledge-base/`.
 
-* What does Insurellm do?
-* What products does the company offer?
-* What is the company culture like?
-* What career opportunities are available?
-* What information is available about employees?
-* What contract-related information is stored in the knowledge base?
+It contains documents about:
 
-The system also displays the retrieved context so the user can see which documents were used to generate the answer.
+- Company overview
+- Company culture
+- Careers
+- Insurance AI products
+- Employee profiles
+- Customer contracts
+- Product/customer relationships
 
----
-
-## RAG Architecture
-
-The project follows a standard RAG pipeline:
-
-```text
-Knowledge Base Documents
-        ↓
-Load Markdown Files
-        ↓
-Split Documents into Chunks
-        ↓
-Create Vector Embeddings
-        ↓
-Store Embeddings in Chroma
-        ↓
-User Asks a Question
-        ↓
-Retrieve Relevant Chunks
-        ↓
-Send Context + Question to LLM
-        ↓
-Generate Final Answer
-```
-
----
-
-## Key Concepts Learned
-
-### 1. Document Loading
-
-The project loads `.md` files from the `knowledge-base` directory.
-
-Each folder inside the knowledge base represents a document type, such as:
+Example structure:
 
 ```text
 knowledge-base/
@@ -82,269 +47,399 @@ knowledge-base/
 └── products/
 ```
 
-Each document is loaded and metadata is added so the system knows where the information came from.
+This knowledge base acts as the source of truth for the assistant.
 
 ---
 
-### 2. Text Chunking
+## Core RAG Flow
 
-Large documents are split into smaller pieces called chunks.
-
-```python
-RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=200
-)
-```
-
-Chunking is important because LLMs and embedding models work better when documents are broken into meaningful sections.
-
-The overlap helps prevent important information from being lost between chunk boundaries.
-
----
-
-### 3. Vector Embeddings
-
-Each chunk is converted into a numerical vector using an embedding model.
-
-Example:
+The main RAG workflow is:
 
 ```text
-"Employees receive company benefits"
+Markdown knowledge base
         ↓
-[0.12, -0.44, 0.91, ...]
+Load documents
+        ↓
+Split or preprocess documents into chunks
+        ↓
+Create vector embeddings
+        ↓
+Store embeddings in Chroma
+        ↓
+User asks a question
+        ↓
+Rewrite and expand the query
+        ↓
+Retrieve relevant chunks
+        ↓
+Rerank retrieved chunks
+        ↓
+Send best context + question to the LLM
+        ↓
+Generate grounded answer
 ```
-
-These vectors represent the semantic meaning of the text.
-
-Similar meanings should produce similar vectors.
 
 ---
 
-### 4. Chroma Vector Database
+## Features
 
-The project uses Chroma to store document embeddings.
+### Basic RAG
 
-Chroma allows the app to search by meaning instead of simple keyword matching.
+The basic implementation demonstrates the standard RAG pattern:
 
-For example, a user might ask:
+- Load Markdown documents from the knowledge base
+- Split documents using `RecursiveCharacterTextSplitter`
+- Create embeddings with `all-MiniLM-L6-v2`
+- Store vectors in Chroma
+- Retrieve relevant context with a LangChain retriever
+- Generate answers with an OpenAI chat model
 
-```text
-What benefits do workers get?
-```
+### Advanced RAG
 
-Even if the document says:
+The advanced implementation adds production-style RAG improvements:
 
-```text
-Employees receive benefits...
-```
+- LLM-assisted document chunking
+- Structured chunk metadata using Pydantic
+- Headline + summary + original text for each chunk
+- OpenAI `text-embedding-3-large` embeddings
+- Chroma `PersistentClient` vector storage
+- Query rewriting
+- Query expansion
+- LLM-based reranking
+- Final top-k context selection
+- Gradio interface showing retrieved context
 
-the retriever can still find the relevant chunk because the meanings are similar.
+### Evaluation
 
----
+The project includes an evaluation system for testing retrieval and answer quality.
 
-### 5. Retriever
+It uses a JSONL test set with multiple question categories:
 
-The vector database is converted into a retriever:
+- `direct_fact`
+- `temporal`
+- `spanning`
+- `comparative`
+- `numerical`
+- `relationship`
+- `holistic`
 
-```python
-retriever = vectorstore.as_retriever()
-```
+The evaluation system measures:
 
-The retriever searches the vector database and returns the most relevant document chunks for a user question.
+- Mean Reciprocal Rank (MRR)
+- Normalized Discounted Cumulative Gain (nDCG)
+- Keyword coverage
+- Answer accuracy
+- Answer completeness
+- Answer relevance
 
----
-
-### 6. Prompt Augmentation
-
-The retrieved chunks are joined together into a context string.
-
-```python
-context = "\n\n".join(doc.page_content for doc in docs)
-```
-
-That context is inserted into a system prompt and sent to the LLM together with the user's question.
-
-This is the "Augmented" part of Retrieval-Augmented Generation.
-
----
-
-### 7. LLM Response Generation
-
-The LLM receives:
-
-* A system message containing the retrieved context
-* The user's question
-* Previous chat history
-
-It then generates an answer based on the retrieved company information.
-
----
-
-### 8. Gradio User Interface
-
-The project includes a Gradio web interface with:
-
-* A chatbot panel
-* A user input box
-* A retrieved context panel
-
-This makes it easy to test the RAG system interactively.
+The answer evaluation uses an LLM-as-a-judge approach.
 
 ---
 
 ## Project Structure
 
 ```text
-WEEK_5/
-├── knowledge-base/
-│   ├── company/
-│   ├── contracts/
-│   ├── employees/
-│   └── products/
-│
-├── vector_db/
-│
-├── ingest.py
-├── answer.py
+Insurellm-RAG-Assistant/
 ├── app.py
-├── .env
-└── README.md
+├── evaluator.py
+├── README.md
+├── .gitignore
+│
+├── implementation/
+│   ├── ingest.py
+│   └── answer.py
+│
+├── pro_implementation/
+│   ├── ingest.py
+│   └── answer.py
+│
+├── evaluation/
+│   ├── eval.py
+│   ├── test.py
+│   └── tests.jsonl
+│
+└── knowledge-base/
+    ├── company/
+    ├── contracts/
+    ├── employees/
+    └── products/
 ```
+
+Generated folders such as `vector_db/`, `preprocessed_db/`, `.venv/`, and `__pycache__/` should not be committed to GitHub.
 
 ---
 
-## File Explanation
-
-### `ingest.py`
-
-This script prepares the knowledge base for retrieval.
-
-It performs the ingestion pipeline:
-
-```text
-load documents → split into chunks → create embeddings → store in Chroma
-```
-
-Main responsibilities:
-
-* Load markdown files from `knowledge-base`
-* Add metadata to documents
-* Split documents into chunks
-* Create embeddings
-* Save vectors to the local Chroma database
-
-Run this file first before starting the app.
-
----
-
-### `answer.py`
-
-This file contains the main RAG logic.
-
-It performs the query-time pipeline:
-
-```text
-user question → retrieve relevant chunks → build context → send to LLM → return answer
-```
-
-Main responsibilities:
-
-* Load the Chroma vector database
-* Create a retriever
-* Retrieve relevant context documents
-* Format the system prompt
-* Call the LLM
-* Return the final answer and retrieved context
-
----
+## File Breakdown
 
 ### `app.py`
 
-This file creates the Gradio interface.
+Launches the main Gradio chat interface.
 
-Main responsibilities:
+It imports the advanced RAG pipeline from:
 
-* Display the chatbot
-* Accept user questions
-* Send questions to the RAG pipeline
-* Show the assistant answer
-* Display retrieved context documents
+```python
+from pro_implementation.answer import answer_question
+```
+
+The UI contains:
+
+- A chatbot panel
+- A user question box
+- A retrieved context panel
+
+The retrieved context panel is useful for debugging because it shows which knowledge-base chunks were used to answer the question.
+
+---
+
+### `implementation/ingest.py`
+
+Creates the basic vector database.
+
+Main steps:
+
+1. Load Markdown documents from `knowledge-base/`
+2. Split documents into chunks
+3. Create embeddings with Hugging Face `all-MiniLM-L6-v2`
+4. Store embeddings in Chroma
+
+This version is useful for understanding the basic RAG pipeline.
+
+---
+
+### `implementation/answer.py`
+
+Implements the basic RAG answering flow.
+
+Main steps:
+
+1. Load the Chroma vector store
+2. Convert the vector store into a retriever
+3. Retrieve relevant chunks for a user question
+4. Build a system prompt with the retrieved context
+5. Call the LLM
+6. Return the generated answer and context
+
+---
+
+### `pro_implementation/ingest.py`
+
+Creates the advanced preprocessed vector database.
+
+Instead of simple character-based chunking, this file uses an LLM to split each document into richer chunks.
+
+Each chunk has:
+
+```python
+headline: str
+summary: str
+original_text: str
+```
+
+The final chunk text combines all three fields:
+
+```text
+headline
+
+summary
+
+original_text
+```
+
+This improves retrieval because the vector database stores both the original evidence and an LLM-generated description of what the chunk is about.
+
+This script stores embeddings in `preprocessed_db/`.
+
+---
+
+### `pro_implementation/answer.py`
+
+Implements the advanced RAG answering pipeline.
+
+Main features:
+
+#### Query Rewriting
+
+The user's question is rewritten into a clearer knowledge-base search query.
+
+Example:
+
+```text
+Original: What about the second one?
+Rewritten: What are the details of Insurellm's second product?
+```
+
+This helps retrieval work better in conversations.
+
+#### Query Expansion
+
+The system retrieves chunks for both:
+
+- the original user question
+- the rewritten search query
+
+The results are merged to improve coverage.
+
+#### Reranking
+
+The first retrieval step collects a broader set of chunks. Then an LLM reranker sorts those chunks by relevance to the user's question.
+
+The final answer uses only the top-ranked chunks.
+
+#### Answer Generation
+
+The final prompt includes:
+
+- system instructions
+- retrieved context extracts
+- user question
+
+The model is instructed to answer accurately, completely, and only when the answer is supported by the knowledge base.
+
+---
+
+### `evaluation/tests.jsonl`
+
+A JSONL evaluation dataset.
+
+Each line contains one test case with:
+
+```json
+{
+  "question": "Who won the prestigious IIOTY award in 2023?",
+  "keywords": ["Maxine", "Thompson", "IIOTY"],
+  "reference_answer": "Maxine Thompson won the prestigious Insurellm Innovator of the Year award in 2023.",
+  "category": "direct_fact"
+}
+```
+
+The test categories help evaluate different RAG capabilities:
+
+| Category | Meaning |
+|---|---|
+| `direct_fact` | Simple factual questions answered from one clear source |
+| `temporal` | Questions involving time, dates, or sequence |
+| `spanning` | Questions requiring multiple chunks or documents |
+| `comparative` | Questions comparing two or more entities |
+| `numerical` | Questions involving numbers, counts, prices, or amounts |
+| `relationship` | Questions about connections between people, products, contracts, or teams |
+| `holistic` | Broad summary or big-picture questions |
+
+---
+
+### `evaluation/test.py`
+
+Loads the JSONL test cases into Pydantic models.
+
+This gives a clean structure for each test question:
+
+```python
+class TestQuestion(BaseModel):
+    question: str
+    keywords: list[str]
+    reference_answer: str
+    category: str
+```
+
+---
+
+### `evaluation/eval.py`
+
+Runs retrieval and answer evaluations.
+
+Retrieval evaluation checks whether the retrieved chunks contain the expected keywords.
+
+Metrics:
+
+- **MRR**: how high the first useful chunk appears
+- **nDCG**: whether useful chunks are ranked near the top
+- **Keyword coverage**: how many expected keywords appear in retrieved context
+
+Answer evaluation uses an LLM judge to score:
+
+- **Accuracy**
+- **Completeness**
+- **Relevance**
+
+---
+
+### `evaluator.py`
+
+Launches a Gradio evaluation dashboard.
+
+The dashboard can run:
+
+- Retrieval evaluation
+- Answer evaluation
+
+It displays:
+
+- Average MRR
+- Average nDCG
+- Average keyword coverage
+- Average answer accuracy
+- Average answer completeness
+- Average answer relevance
+- Category-level bar charts
 
 ---
 
 ## Installation
 
-Create and activate a virtual environment.
+Create a virtual environment:
 
 ```bash
 python -m venv .venv
 ```
 
-Activate it on Windows:
+Activate it on Windows PowerShell:
 
-```bash
-.venv\Scripts\activate
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
-Install the required packages:
+Install dependencies:
 
 ```bash
-pip install langchain langchain-chroma langchain-huggingface langchain-openai langchain-text-splitters chromadb gradio python-dotenv sentence-transformers
+pip install openai python-dotenv pydantic chromadb tqdm litellm numpy scikit-learn plotly gradio pandas tenacity langchain langchain-chroma langchain-huggingface langchain-openai langchain-text-splitters sentence-transformers
 ```
 
-If using `uv`, install dependencies with:
+If using `uv`:
 
 ```bash
-uv pip install langchain langchain-chroma langchain-huggingface langchain-openai langchain-text-splitters chromadb gradio python-dotenv sentence-transformers
+uv pip install openai python-dotenv pydantic chromadb tqdm litellm numpy scikit-learn plotly gradio pandas tenacity langchain langchain-chroma langchain-huggingface langchain-openai langchain-text-splitters sentence-transformers
 ```
 
 ---
 
 ## Environment Variables
 
-Create a `.env` file in the project root.
-
-If using OpenAI for the chat model, add:
+Create a `.env` file in the project root:
 
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-Do not commit the `.env` file to GitHub.
+Do not commit `.env` to GitHub.
 
 ---
 
 ## How to Run
 
-### 1. Ingest the documents
-
-Run:
+### 1. Create the advanced vector database
 
 ```bash
-uv run ingest.py
+uv run pro_implementation/ingest.py
 ```
 
 or:
 
 ```bash
-python ingest.py
+python pro_implementation/ingest.py
 ```
 
-This creates the local Chroma vector database.
+This creates `preprocessed_db/` locally.
 
-Expected output:
-
-```text
-There are X vectors with 384 dimensions in the vector store
-Ingestion complete
-```
-
----
-
-### 2. Start the Gradio app
-
-Run:
+### 2. Run the chat app
 
 ```bash
 uv run app.py
@@ -356,106 +451,131 @@ or:
 python app.py
 ```
 
-The app will open in the browser.
+The Gradio app opens in the browser.
 
----
+### 3. Run the evaluation dashboard
 
-## Important Note About Embeddings
-
-The same embedding model must be used during both ingestion and retrieval.
-
-For example, if `ingest.py` creates vectors using:
-
-```python
-HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+```bash
+uv run evaluator.py
 ```
 
-then `answer.py` should also use:
+or:
 
-```python
-HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+```bash
+python evaluator.py
 ```
 
-If different embedding models are used, the vector dimensions may not match and retrieval can fail.
+### 4. Run a single CLI evaluation test
 
----
+Depending on your Python path setup, run from the project root:
 
-## Example RAG Flow
-
-User asks:
-
-```text
-What does Insurellm do?
+```bash
+python -m evaluation.eval 0
 ```
 
-The app then:
+or from inside the `evaluation/` directory:
 
-1. Converts the question into an embedding
-2. Searches Chroma for similar document chunks
-3. Retrieves relevant company information
-4. Adds the retrieved chunks to the prompt
-5. Sends the prompt to the LLM
-6. Returns a grounded answer to the user
-
----
-
-## Technologies Used
-
-* Python
-* LangChain
-* Chroma
-* Hugging Face Embeddings
-* OpenAI Chat Model
-* Gradio
-* dotenv
-* Markdown knowledge base
+```bash
+python eval.py 0
+```
 
 ---
 
 ## What I Learned
 
-Through this project, I learned:
+This project helped me understand and implement:
 
-* How RAG systems work
-* The difference between LLMs and embedding models
-* How text is converted into vector embeddings
-* How vector databases store and retrieve semantic information
-* How chunk size and chunk overlap affect retrieval quality
-* How Chroma stores local embeddings
-* How a retriever searches for relevant context
-* How to combine retrieved context with a user question
-* How to build a simple Gradio interface for an LLM app
-* Why using the same embedding model during ingestion and retrieval is important
-* How to structure a basic LLM application with separate ingestion, retrieval, and UI files
+- How RAG systems work end to end
+- The difference between LLMs and embedding models
+- How embeddings represent text as vectors
+- How Chroma stores and searches vectors
+- How chunk size and overlap affect retrieval
+- Why retrieval quality matters before answer generation
+- How to build a basic LangChain RAG app
+- How to build a more advanced RAG pipeline manually
+- How Pydantic structured outputs can guide LLM preprocessing
+- How LLM-generated headlines and summaries can improve retrieval
+- How query rewriting improves conversational search
+- How query expansion improves context coverage
+- How reranking improves the order of retrieved chunks
+- How to evaluate retrieval with MRR, nDCG, and keyword coverage
+- How to evaluate answers with LLM-as-a-judge
+- How to build a Gradio app and a Gradio evaluation dashboard
+
+---
+
+## Important Engineering Notes
+
+### Same embedding model must be used for indexing and querying
+
+If the database is created with OpenAI `text-embedding-3-large`, the query embedding must also use `text-embedding-3-large`.
+
+If the database is created with Hugging Face `all-MiniLM-L6-v2`, querying must use the same model.
+
+Mixing embedding models can cause dimension mismatches or poor retrieval.
+
+### Generated vector databases are not committed
+
+The folders `vector_db/` and `preprocessed_db/` are generated artifacts. They can be recreated by running the ingestion scripts, so they should be ignored by Git.
+
+### The app depends on ingestion
+
+The chat app expects the advanced Chroma database to exist. Run `pro_implementation/ingest.py` before running `app.py`.
+
+---
+
+## Recommended `.gitignore`
+
+```gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+notebook/
+vector_db/
+preprocessed_db/
+.DS_Store
+```
 
 ---
 
 ## Future Improvements
 
-Possible improvements for this project:
+Possible next steps:
 
-* Add better error handling
-* Add support for PDF files
-* Add document upload from the UI
-* Add conversational query rewriting
-* Add evaluation for retrieval quality
-* Add Docker support
-* Deploy the app to AWS
-* Use a production vector database such as Qdrant, Pinecone, OpenSearch, or pgvector
-* Add observability with LangSmith or LangFuse
+- Add source citations directly into the final answer
+- Replace LLM reranking with a faster dedicated reranker model
+- Add hybrid retrieval using vector search plus keyword/BM25 search
+- Add metadata filters by document type
+- Add document upload from the UI
+- Add support for PDFs
+- Add Docker support
+- Add deployment to AWS
+- Add LangSmith or LangFuse tracing
+- Store evaluation results over time
+- Add CI checks for retrieval quality before deployment
 
 ---
 
 ## Summary
 
-This project is a beginner-friendly but practical implementation of a RAG assistant.
-
-It shows how company documents can be turned into searchable vector embeddings and used as context for an LLM-powered chatbot.
-
-The main goal is to understand the full RAG workflow:
+This project demonstrates a complete RAG learning path:
 
 ```text
-documents → chunks → embeddings → vector database → retrieval → prompt → LLM answer
+basic RAG
+    ↓
+advanced preprocessing
+    ↓
+query rewriting and expansion
+    ↓
+reranking
+    ↓
+answer generation
+    ↓
+retrieval and answer evaluation
 ```
 
-This is one of the core patterns used in modern LLM applications.
+It shows how a company knowledge base can be converted into a searchable vector database and used to power a grounded LLM assistant.
+
+The most important lesson is that a RAG system should not only answer questions — it should also be evaluated to verify that it retrieves the right evidence and generates accurate, relevant, and complete answers.
